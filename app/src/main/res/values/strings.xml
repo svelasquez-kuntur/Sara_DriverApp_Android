@@ -46,6 +46,7 @@ body, div, p {
         </html>"
         ]]>
     </string>
-    <string name="mercado_pago_pk">TEST-558726ed-018e-497f-927e-63619573412d</string>
-
+    <string name="mercado_pago_pk">APP_USR-b787605d-4ed7-4301-bd56-9c10cf4ad13a</string>
+    <string name="mercado_pago_at">APP_USR-2270145813158022-112715-f82cb156fd2c45bd6c5070f1985c9cc1-381120687</string>
+    <string name="collector_id">381120687</string>
 </resources>

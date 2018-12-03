@@ -19,6 +19,7 @@ import android.util.Log;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import com.facebook.drawee.backends.pipeline.Fresco;
 import com.sara.driver.LauncherActivity;
 import com.sara.driver.R;
 import com.splunk.mint.Mint;
@@ -53,6 +54,8 @@ public class MyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        Fresco.initialize(this);
+
         setScreenOrientation();
         Mint.initAndStartSession(this, CommonUtilities.MINT_APP_ID);
         mMyApp = (MyApp) this.getApplicationContext();

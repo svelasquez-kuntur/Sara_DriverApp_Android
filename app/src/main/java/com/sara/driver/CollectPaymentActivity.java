@@ -3,6 +3,7 @@ package com.sara.driver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Color;
+import android.net.Uri;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Editable;
@@ -17,6 +18,12 @@ import android.widget.RatingBar;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+import com.facebook.drawee.view.SimpleDraweeView;
 import com.general.files.ExecuteWebServerUrl;
 import com.general.files.GeneralFunctions;
 import com.general.files.StartActProcess;
@@ -26,6 +33,7 @@ import com.view.ErrorView;
 import com.view.MButton;
 import com.view.MTextView;
 import com.view.MaterialRippleLayout;
+import com.view.MyProgressDialog;
 import com.view.editBox.MaterialEditText;
 
 import org.json.JSONArray;
@@ -38,6 +46,8 @@ public class CollectPaymentActivity extends AppCompatActivity {
 
     MTextView titleTxt;
     ImageView backImgView;
+
+    SimpleDraweeView imageViewQr;
 
     GeneralFunctions generalFunc;
 
@@ -78,6 +88,7 @@ public class CollectPaymentActivity extends AppCompatActivity {
 
         generalFunc = new GeneralFunctions(getActContext());
 
+        imageViewQr = (SimpleDraweeView) findViewById(R.id.imageViewQr);
 
         titleTxt = (MTextView) findViewById(R.id.titleTxt);
         backImgView = (ImageView) findViewById(R.id.backImgView);
@@ -177,6 +188,103 @@ public class CollectPaymentActivity extends AppCompatActivity {
         super.onSaveInstanceState(outState);
     }
 
+    public MyProgressDialog showLoader() {
+        MyProgressDialog myPDialog = new MyProgressDialog(getActContext(), false, generalFunc.retrieveLangLBl("Loading", "LBL_LOADING_TXT"));
+        myPDialog.show();
+
+        return myPDialog;
+    }
+
+    public void generateSaleOrder(String tripId, String amount, final Uri qrUri) {
+        final MyProgressDialog myPDialog = showLoader();
+
+        JSONObject tripInfo = new JSONObject();
+        JSONArray items = new JSONArray();
+        JSONObject item = new JSONObject();
+        String mercadoPagoUrl = "https://api.mercadolibre.com/mpmobile/instore/qr/" +
+                getString(R.string.collector_id) +
+                "/" +
+                tripId +
+                "?access_token=" +
+                getString(R.string.mercado_pago_at);
+        try {
+            tripInfo.put("external_reference", tripId);
+            tripInfo.put("notification_url", "https://www.saralt.com/webservice.php");
+            item.put("title", "Viaje con Sara");
+            item.put("currency_id", "ARS");
+            item.put("unit_price", amount);
+            item.put("quantity", 1);
+            items.put(item);
+            tripInfo.put("items", items);
+
+            JsonObjectRequest request = new JsonObjectRequest
+                    (Request.Method.POST, mercadoPagoUrl, tripInfo, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(final JSONObject jsonObject) {
+                            try {
+                                Utils.printLog("Respuesta", "::" + jsonObject.toString());
+
+                                if (qrUri != null) {
+                                    imageViewQr.setImageURI(qrUri);
+                                }
+                            } catch (Exception e) {
+                                Utils.printLog("Error", "::" + e.getMessage());
+                            }
+                            myPDialog.close();
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Utils.printLog("Error", "::" + error.getMessage());
+                            myPDialog.close();
+                        }
+                    });
+            Volley.newRequestQueue(getActContext()).add(request);
+        } catch (Exception e) {
+            Utils.printLog("Error", "::" + e.getMessage());
+        }
+    }
+
+    public void showQr(final String tripId, final String amount) {
+        final MyProgressDialog myPDialog = showLoader();
+
+        String mercadoPagoUrl = "https://api.mercadopago.com/mpmobile/instore/merchant/qr/" +
+                getString(R.string.collector_id) +
+                "/" +
+                tripId +
+                "?access_token=" +
+                getString(R.string.mercado_pago_at);
+        Utils.printLog("Monto", "::" + amount);
+
+
+        try {
+            JsonObjectRequest request = new JsonObjectRequest
+                    (Request.Method.GET, mercadoPagoUrl, null, new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(final JSONObject jsonObject) {
+                            try {
+                                Utils.printLog("QR Request", "::" + jsonObject.toString());
+                                String qrURL = jsonObject.getString("qr");
+                                Uri qrUri = Uri.parse(qrURL);
+                                generateSaleOrder(tripId, amount, qrUri);
+                            } catch (Exception e) {
+                                Utils.printLog("Error QR", "::" + e.getMessage());
+                            }
+                            myPDialog.close();
+                        }
+                    }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Utils.printLog("ErrorQR", "::" + error.getMessage());
+                            myPDialog.close();
+                        }
+                    });
+            Volley.newRequestQueue(getActContext()).add(request);
+        } catch (Exception e) {
+            Utils.printLog("Error", "::" + e.getMessage());
+        }
+    }
+
     public Context getActContext() {
         return CollectPaymentActivity.this;
     }
@@ -274,6 +382,7 @@ public class CollectPaymentActivity extends AppCompatActivity {
 
                         String FormattedTripDate = generalFunc.getJsonValue("tTripRequestDateOrig", message);
                         String FareSubTotal = generalFunc.getJsonValue("FareSubTotal", message);
+
                         String eCancelled = generalFunc.getJsonValue("eCancelled", message);
                         String vCancelReason = generalFunc.getJsonValue("vCancelReason", message);
                         String vTripPaymentMode = generalFunc.getJsonValue("vTripPaymentMode", message);
@@ -288,8 +397,8 @@ public class CollectPaymentActivity extends AppCompatActivity {
                         String iTripId = generalFunc.getJsonValue("iTripId", message);
 
                         iTripId_str = iTripId;
-
-
+                        String fare_str = FareSubTotal.replace(CurrencySymbol, "");
+                        showQr(iTripId, fare_str);
                         if (!fDiscount.equals("") && !fDiscount.equals("0") && !fDiscount.equals("0.00")) {
 
                             ((MTextView) findViewById(R.id.promoAppliedTxt)).setText(CurrencySymbol + generalFunc.convertNumberWithRTL(fDiscount));
@@ -322,7 +431,7 @@ public class CollectPaymentActivity extends AppCompatActivity {
                         }
 
 //                        ((MTextView) findViewById(R.id.dateTxt)).setText(generalFunc.getDateFormatedType(FormattedTripDate, Utils.OriginalDateFormate, Utils.dateFormateInList));
-                        ((MTextView) findViewById(R.id.dateTxt)).setText(generalFunc.getDateFormatedType(FormattedTripDate, Utils.OriginalDateFormate, Utils.DateFormateInDetailScreen));
+//                        ((MTextView) findViewById(R.id.dateTxt)).setText(generalFunc.getDateFormatedType(FormattedTripDate, Utils.OriginalDateFormate, Utils.DateFormateInDetailScreen));
                         ((MTextView) findViewById(R.id.fareTxt)).setText(generalFunc.convertNumberWithRTL(FareSubTotal));
 
                         container.setVisibility(View.VISIBLE);
